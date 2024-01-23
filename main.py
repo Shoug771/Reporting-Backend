@@ -56,18 +56,10 @@ def generate_report():
       # Print the JSON data to the console
        print(json_data) 
 
-       document = generate_word(report_type, client, date, json_data)
+       word_file = generate_word(report_type, client, date, json_data)
+       pdf_file = word_to_pdf(word_file)
 
-      # Save the Word document with a filename based on client name and selected date
-       word_file = f"{report_type} {client} {date}.docx"
-       document.save(word_file)
-
-       pdf_file = f"{report_type} {client} {date}.pdf"
-       convert(word_file, pdf_file)
-
-      # send the file
        return send_file(word_file, as_attachment=True), send_file(pdf_file, as_attachment=True)
-
 
     except Exception as e:
         error_message = str(e)
@@ -85,11 +77,21 @@ def csv_to_json(csv_file):
     return json.dumps(data, indent=2)
 
 
-
 def generate_word(report_type, client, date, json_data):
    document  = Document("template.docx")
-   return
 
+   # Save the document with a filename based on client name and selected date
+   word_file = f"{report_type} {client} {date}.docx"
+   document.save(word_file)
+
+   return word_file
+
+
+def word_to_pdf(word_file):
+    pdf_file = word_file.replace('.docx', '.pdf')
+    convert(word_file, pdf_file)
+    return pdf_file
+   
    
 app.run(host="0.0.0.0", port=5000, debug=True)
 

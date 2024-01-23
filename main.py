@@ -90,24 +90,6 @@ def generate_word(report_type, client, date, json_data):
    document  = Document("template.docx")
    return
 
-def AbuseIPDB(IP):
-    url = 'https://api.abuseipdb.com/api/v2/check'
-
-    querystring = {
-        'ipAddress':IP,
-        'maxAgeInDays':'300',
-    }
-
-    headers = {
-        'Accept': 'application/json',
-        'Key': 'a583db48791dbdabf54a208dd89bdadc2bcd127c98d69fa45f9037ed965dd672f06bfd9d1db63be1'
-    }
-
-    response = requests.request(method='GET', url=url, headers=headers, params=querystring)
-
-    # Formatted output
-    decodedResponse = json.loads(response.text)
-    return ((decodedResponse["data"]))
    
 app.run(host="0.0.0.0", port=5000, debug=True)
 

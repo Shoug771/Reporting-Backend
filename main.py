@@ -1,21 +1,17 @@
-from io import StringIO
 from flask import Flask, request, jsonify, json, send_file
-import requests
+from io import StringIO
 import csv
-from datetime import datetime
-import pandas as pd
+import os
 from docx import Document
 from flask_cors import CORS
 from docx2pdf import convert
+from werkzeug.utils import secure_filename
 
-'''
-'StringIO' To provide a file-like object interface to the CSV data stored in the 
- variable csv_content without the need to write it to a physical file on disk.
-'request' to access incoming request data
-'jsonify' to convert Python dictionaries to JSON responses
-'pandas' for reading csv files into a data frame
-'Document' for creating and manipulating word documents
-'''
+# 'request' to access incoming request data
+# 'StringIO' to create a file-like object from the content
+# 'jsonify' to convert Python dictionaries to JSON responses
+# 'Document' for creating and manipulating word documents
+
 
 app = Flask(__name__)
 CORS(app)
@@ -25,11 +21,16 @@ ALLOWED_EXTENSIONS = {'csv'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @app.route("/api/generate_report", methods=['POST'])
 
 def generate_report():
+    word_file = None
     try:
     # Get form data from the request
+       print(request.form)
+       print(request.files)
+
        report_type = request.form.get('report_type')
        client = request.form.get('client')
        date = request.form.get('date')
@@ -45,53 +46,87 @@ def generate_report():
        if date is None:
          missing_fields.append("Date")
 
-       if csv_file is None or not allowed_file(csv_file.filename):
-         missing_fields.append("CSV File is missing or has an invalid extension.")
+       if csv_file is None:
+         missing_fields.append("CSV File is missing.")
+
+       elif not allowed_file(csv_file.filename):
+         missing_fields.append(f"Invalid CSV File: {csv_file.filename}")
+
 
        if missing_fields:
          raise ValueError("Missing required fields: " + ", ".join(missing_fields))
        
-       json_data = csv_to_json(csv_file)
 
-      # Print the JSON data to the console
-       print(json_data) 
+       json_data = csv_to_json(csv_file)
 
        word_file = generate_word(report_type, client, date, json_data)
        pdf_file = word_to_pdf(word_file)
-
+       
        return send_file(word_file, as_attachment=True), send_file(pdf_file, as_attachment=True)
 
     except Exception as e:
         error_message = str(e)
         return jsonify({"error": error_message}), 400
-     
+    
+    finally:
+      # Remove the temporary files
+      if os.path.exists(word_file):
+          os.remove(word_file)
+          if os.path.exists(pdf_file):
+              os.remove(pdf_file) 
 
 def csv_to_json(csv_file):
-    data = []
+    try:
+     data = []
+     csv_content = csv_file.read().decode('utf-8')
+     csv_content_io = StringIO(csv_content)
+     csv_reader = csv.DictReader(csv_content_io)
+     for row in csv_reader:
+        data.append(row)
 
-    with open(csv_file, 'r') as file:
-        csv_reader = csv.DictReader(file)
-        for row in csv_reader:
-            data.append(row)
-
-    return json.dumps(data, indent=2)
+     return json.dumps(data, indent=2)
+    
+    except Exception as e:
+       raise ValueError("Error Converting csv to json: " + str(e))
 
 
 def generate_word(report_type, client, date, json_data):
-   document  = Document("template.docx")
+   try: 
+    # Get the current working directory
+    current_directory = os.getcwd()
 
-   # Save the document with a filename based on client name and selected date
-   word_file = f"{report_type} {client} {date}.docx"
-   document.save(word_file)
+    # Define the template file name
+    template_filename = "template.docx"
 
-   return word_file
+    # Create the full path to the template file
+    template_path = os.path.join(current_directory, template_filename)
+    document  = Document(template_path)
+
+    # Save the document with a filename based on client name and selected date
+    word_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"{report_type} report {client} {date}.docx")
+      
+    document.add_page_break()
+    document.add_heading("JSON Data", level=1)
+    document.add_paragraph(json_data)
+
+    document.save(word_file)
+
+    return word_file
+   
+   except Exception as e:
+      raise ValueError("Error generating word doc: " + str(e))
 
 
 def word_to_pdf(word_file):
-    pdf_file = word_file.replace('.docx', '.pdf')
-    convert(word_file, pdf_file)
-    return pdf_file
+    try:
+     pdf_file = word_file.replace('.docx', '.pdf')
+     convert(word_file, pdf_file)
+
+     return pdf_file
+    
+    except Exception as e: 
+       raise ValueError("Error converting word to pdf: " + str(e))
    
-   
+
 app.run(host="0.0.0.0", port=5000, debug=True)
 

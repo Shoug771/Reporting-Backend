@@ -5,7 +5,10 @@ import os
 from docx import Document
 from flask_cors import CORS
 from docx2pdf import convert
-from werkzeug.utils import secure_filename
+import tempfile
+import shutil
+import zipfile
+
 
 # 'request' to access incoming request data
 # 'StringIO' to create a file-like object from the content
@@ -25,7 +28,7 @@ def allowed_file(filename):
 @app.route("/api/generate_report", methods=['POST'])
 
 def generate_report():
-    word_file = None
+
     try:
     # Get form data from the request
        print(request.form)
@@ -62,18 +65,36 @@ def generate_report():
        word_file = generate_word(report_type, client, date, json_data)
        pdf_file = word_to_pdf(word_file)
        
-       return send_file(word_file, as_attachment=True), send_file(pdf_file, as_attachment=True)
+       temp_dir = tempfile.mkdtemp()
+
+        # Save the Word and PDF files in the temporary directory
+       temp_word_file = os.path.join(temp_dir, os.path.basename(word_file))
+       temp_pdf_file = os.path.join(temp_dir, os.path.basename(pdf_file))
+       os.rename(word_file, temp_word_file)
+       os.rename(pdf_file, temp_pdf_file)
+
+        # Zip the files in the temporary directory
+       zip_file_path = os.path.join(temp_dir, 'report_files.zip')
+       with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(temp_word_file, os.path.basename(temp_word_file))
+            zipf.write(temp_pdf_file, os.path.basename(temp_pdf_file))
+
+       response = send_file(zip_file_path, mimetype='application/zip', download_name='report_files.zip', as_attachment=True)
+
+       return response
 
     except Exception as e:
         error_message = str(e)
         return jsonify({"error": error_message}), 400
-    
+
     finally:
-      # Remove the temporary files
-      if os.path.exists(word_file):
-          os.remove(word_file)
-          if os.path.exists(pdf_file):
-              os.remove(pdf_file) 
+        try:
+        # Remove the temporary directory and its contents
+         if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        except Exception as e:
+            print(f"Error deleting temporary directory: {e}")
+
 
 def csv_to_json(csv_file):
     try:
@@ -116,7 +137,6 @@ def generate_word(report_type, client, date, json_data):
    except Exception as e:
       raise ValueError("Error generating word doc: " + str(e))
 
-
 def word_to_pdf(word_file):
     try:
      pdf_file = word_file.replace('.docx', '.pdf')
@@ -130,3 +150,4 @@ def word_to_pdf(word_file):
 
 app.run(host="0.0.0.0", port=5000, debug=True)
 
+ 

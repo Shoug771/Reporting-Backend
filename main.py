@@ -8,6 +8,7 @@ from docx2pdf import convert
 import tempfile
 import shutil
 import zipfile
+  
 
 
 # 'request' to access incoming request data
@@ -146,7 +147,18 @@ def word_to_pdf(word_file):
     
     except Exception as e: 
        raise ValueError("Error converting word to pdf: " + str(e))
+
+Attack_Summary = [ 
    
+ {'count': 9, 'date': '01-03-2024'},
+ {'count': 7, 'date': '02-03-2024'},
+ {'count': 3, 'date': '03-03-2024'},
+ {'count': 21, 'date': '04-03-2024'},
+ {'count': 19, 'date': '05-03-2024'},
+ {'count': 7, 'date': '06-03-2024'},
+ {'count': 11, 'date': '07-03-2024'} ]
+
+
 
 app.run(host="0.0.0.0", port=5000, debug=True)
 
